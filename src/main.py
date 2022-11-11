@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import defaultdict
 from urllib.parse import urljoin
 
 import requests_cache
@@ -16,8 +17,6 @@ def whats_new(session):
     """Собирает информацию об обновлениях Python."""
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     response = get_response(session, whats_new_url)
-    if response is None:
-        return
 
     soup = BeautifulSoup(response.text, features='lxml')
 
@@ -50,8 +49,6 @@ def whats_new(session):
 def latest_versions(session):
     """Собирается информация о последних версиях Python."""
     response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
     soup = BeautifulSoup(response.text, features='lxml')
 
     sidebar = find_tag(soup, 'div', attrs={'class': 'sphinxsidebarwrapper'})
@@ -61,8 +58,8 @@ def latest_versions(session):
         if 'All versions' in ul.text:
             a_tags = ul.find_all('a')
             break
-        else:
-            raise Exception('Ничего не нашлось')
+    else:
+        raise Exception('Ничего не нашлось')
 
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
@@ -86,8 +83,6 @@ def download(session):
     """Скачивает документацию."""
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
     response = get_response(session, downloads_url)
-    if response is None:
-        return
     soup = BeautifulSoup(response.text, features='lxml')
 
     table_tag = find_tag(soup, 'table', attrs={'class': 'docutils'})
@@ -109,22 +104,9 @@ def download(session):
 def pep(session):
     """Парсинг PEP стандартов."""
     results = [('Статус', 'Количество')]
-    status_count = {
-        'Accepted': 0,
-        'Active': 0,
-        'Deferred': 0,
-        'Draft': 0,
-        'Final': 0,
-        'Provisional': 0,
-        'Rejected': 0,
-        'Superseded': 0,
-        'Withdrawn': 0,
-        'April Fool!': 0,
-    }
+    status_count = defaultdict(int)
     total_count = 0
     response = get_response(session, MAIN_PEP_URL)
-    if response is None:
-        return
     soup = BeautifulSoup(response.text, features='lxml')
 
     all_tables = find_tag(soup, 'section', attrs={'id': 'numerical-index'})
@@ -139,22 +121,10 @@ def pep(session):
         if response is None:
             continue
         soup = BeautifulSoup(response.text, features='lxml')
-        in_table = find_tag(
-            soup,
-            'dl',
-            attrs={'class': 'rfc2822 field-list simple'}
-        ).text
-        pattern = (
-            r'.*(?P<status>Active|Accepted|Deferred|Final|April Fool!|'
-            r'Provisional|Rejected|Superseded|Withdrawn|Draft)'
-        )
-        text_match = re.search(pattern, in_table)
-        status = None
-        if text_match:
-            status = text_match.group(1)
+        status = find_tag(soup, text='Status').find_next('dd').text
         if status not in expected_status:
             logging.info(
-                f'Несовпадающие статусы: '
+                'Несовпадающие статусы: '
                 f'{pep_card_link}. '
                 f'Статус в карточке: {status}. '
                 f'Ожидаемые статусы: {expected_status}.'
@@ -162,8 +132,7 @@ def pep(session):
         total_count += 1
         status_count[status] += 1
 
-    for key, value in status_count.items():
-        results.append((key, value))
+    results.extend((status_count.items()))
     results.append(('Total', total_count))
 
     return results

@@ -10,6 +10,8 @@ def get_response(session, url):
     try:
         response = session.get(url)
         response.encoding = 'utf-8'
+        if response is None:
+            return
         return response
     except RequestException:
         logging.exception(
@@ -18,9 +20,9 @@ def get_response(session, url):
         )
 
 
-def find_tag(soup, tag, attrs=None):
+def find_tag(soup, tag=None, attrs=None, text=None):
     """Безопасная реализация find()."""
-    searched_tag = soup.find(tag, attrs=(attrs or {}))
+    searched_tag = soup.find(tag, attrs=(attrs or {}), text=text)
     if searched_tag is None:
         error_msg = f'Не найден тег {tag} {attrs}'
         logging.error(error_msg, stack_info=True)
